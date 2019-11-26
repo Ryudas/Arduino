@@ -6,6 +6,7 @@
 
 //TMRpcm tmrpcm;   // create an object for use in this sketch
 File myFile;
+ICM20649 sensor(D11,D12,D13, D10);
 void setup(){
 //  tmrpcm.speakerPin = 9; //5,6,11 or 46 on Mega, 9 on Uno, Nano, etc
     SPI.setSCLK(PA5);

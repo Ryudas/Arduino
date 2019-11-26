@@ -22,7 +22,7 @@ void setup() {
     // verify connection
     Serial.println("Testing device connections...");
     Serial.println(mag.testConnection() ? "AK8963 connection successful" : "AK8963 connection failed");
-
+    
     // put your main code here, to run repeatedly:
     Serial.print("Device ID ");
     Serial.println(mag.getDeviceID());
