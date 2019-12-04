@@ -48,7 +48,7 @@ void setup() {
   
   // Make sure you have stored your credentials on "arduino_secrets.h" before running this command
   
-  dcdHub.connect(SECRET_SSID, SECRET_PASS, THING_ID, THING_TOKEN, "Arduino Nano 33 IoT");
+  //dcdHub.connect(SECRET_SSID, SECRET_PASS, THING_ID, THING_TOKEN, "Roomba");
   Serial.println();
 }
 
@@ -237,13 +237,15 @@ void loop() {
   mySerial.write(130); // Control - goto SAFE mode
   
   readPhysical();
-  readInternal();
-  readBattery();
-  printPhysical();
+  //readInternal();
+  //readBattery();
+  //printPhysical();
+ // printInternal();
+ // printBattery();
   send_data_to_hub();
   
   // 100 hz
-  delay(10);
+  //delay(10);
   
 }
 
@@ -257,8 +259,103 @@ void send_data_to_hub()
   // dcdHub.update_property("my-random-property3-e0cf",value2, 2);
   // dcdHub.update_property("my-random-property2-563b",value3, 3);
 
-    // Some random 1D, 2D, 3D values to upload on the hub. Later, you can replace these with your sensors value.  
-  float value[] = {random(5)};
-  float value2[] = {random(80), random(25)};
-  float value3[] = {random(80), random(25), random(60)};
+  // Some random 1D, 2D, 3D values to upload on the hub. Later, you can replace these with your sensors value.  
+  float value_1D[] = {random(5)};
+  float value_2D[] = {random(80), random(25)};
+  float value_3D[] = {random(80), random(25), random(60)};
+  float value_4D[] = {random(80), random(25), random(60), random(60)};
+// A list of masks for the sensordata. Used to check validity of data: if an unused bit is set, there is a (sync?) error.
+//                        0    1   2   3   4   5   6   7    8    9   10   11  12   13   14   15   16  17   18   19   20   21   22   23   24   25
+//                      BMP ,WALL (6x)              ,Mcur,Dirt 2x  ,R/C, BTN,Distance ,Angle    ,CHG,Vbat     ,Ibat     ,Tbat,Bcharge  ,Bcapacity,
+byte sensorMask[26] = { 0xFF, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1F, 0xFF, 0xFF, 0xFF, 0xF, 0xFF, 0xFF, 0xFF, 0xFF, 0xF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
+
+//  bump_map 
+  // get values , L, R 
+  value_2D[0] = float( (sensorData[0]&0x2)>>1);  value_2D[1] = float((sensorData[0]&0x1));
+  
+  dcdHub.update_property("bump_map",value_2D, 2);
+//  wheeldrop_map, L, R, C
+
+  value_3D[0] = float( (sensorData[0]&0x8)>>3);  value_3D[1] = float( (sensorData[0]&0x4)>>2); value_3D[2] = float( (sensorData[0]&0x10)>>4);
+  dcdHub.update_property("wheeldrop_map",value_3D, 3);
+  
+//  wall
+  value_1D[0] = (float) sensorData[1];
+  dcdHub.update_property("wall", value_1D, 1);
+  
+//  cliff_map L, R, FL, FR
+  value_4D[0] = (float)sensorData[2];  value_4D[1] = (float)sensorData[5]; value_4D[2] = (float)sensorData[3]; value_4D[3] = (float)sensorData[4];
+  dcdHub.update_property("cliff_map", value_4D, 4);
+  
+//  virtual_wall
+  value_1D[0] = (float) sensorData[6];
+  dcdHub.update_property("virtual_wall", value_1D, 1);
+  
+//  drive_overcurrent
+    value_2D[0] = float( (sensorData[7]&0x10)>>4);  value_2D[1] = float((sensorData[7]&0x8)>>3);
+  dcdHub.update_property("drive_overcurrent", value_2D, 2);
+  
+//  brush_overcurrent
+    value_2D[0] = float( (sensorData[7]&0x4)>>2);  value_2D[1] = float((sensorData[7]&0x1));
+  dcdHub.update_property("brush_overcurrent", value_2D, 2);
+  
+//  vacuum_overcurrent
+  value_1D[0] = float( (sensorData[7]&0x2)>>1);
+  dcdHub.update_property("vacuum_overcurrent", value_1D, 1);
+  
+//  dirt_map , L, R
+  value_2D[0] = (float)sensorData[8];  value_2D[1] = (float)sensorData[9];
+  dcdHub.update_property("dirt_map", value_2D, 2);
+  
+//  inner_distance
+  value_1D[0] = float( (sensorData[12] * 256 + sensorData[13]) / 1000.0);
+  dcdHub.update_property("inner_distance", value_1D, 1);
+  
+//  inner_angle
+  value_1D[0] = float( (sensorData[14] * 256 + sensorData[15]) / 1000.0);
+  dcdHub.update_property("inner_angle", value_1D, 1);
+
+  
+//  battery_current
+  value_1D[0] = float( (sensorData[19] * 256 + sensorData[20]) / 1000.0);
+  dcdHub.update_property("battery_current", value_1D, 1);
+  
+//  battery_charge
+  value_1D[0] = float( (sensorData[22] * 256 + sensorData[23]) / 1000.0);;
+  dcdHub.update_property("battery_charge", value_1D, 1);
+  
+
+}
+
+
+// Print internal data
+void printInternal() {
+  Serial.print("R/C: ");
+  Serial.print(sensorData[10], HEX); // Bump and wheeldrop
+  Serial.print(", Buttons: ");
+  Serial.print(sensorData[11], HEX);
+  Serial.print(", Distance :");
+  Serial.print((int(sensorData[12]) * 256 + sensorData[13]) / 1000.0);
+  Serial.print("m, Angle:");
+  Serial.print((int(sensorData[14]) * 256 + sensorData[15]) / 1000.0);
+  Serial.print(" degrees");
+  Serial.println();
+}
+
+// Print sensor data
+void printBattery() {
+  Serial.print("Charging state: ");
+  Serial.print(sensorData[16], HEX); // Bump and wheeldrop
+  Serial.print(", ");
+  Serial.print((int(sensorData[17]) * 256 + sensorData[18]) / 1000.0);
+  Serial.print("V, ");
+  Serial.print((int(sensorData[19]) * 256 + sensorData[20]) / 1000.0);
+  Serial.print("A, ");
+  Serial.print(sensorData[21]);
+  Serial.print("C, ");
+  Serial.print(int(sensorData[22]) * 256 + sensorData[23]);
+  Serial.print("/");
+  Serial.print(int(sensorData[24]) * 256 + sensorData[25]);
+  Serial.print("mAh, ");
+  Serial.println();
 }
